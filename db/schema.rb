@@ -10,13 +10,37 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20110329220529) do
+ActiveRecord::Schema.define(:version => 20110329222526) do
+
+  create_table "article_genes", :force => true do |t|
+    t.integer "article_id"
+    t.integer "gene_id"
+  end
+
+  add_index "article_genes", ["article_id", "gene_id"], :name => "index_article_genes_on_article_id_and_gene_id", :unique => true
+
+  create_table "article_subjects", :force => true do |t|
+    t.integer "article_id"
+    t.integer "subject_id"
+  end
+
+  add_index "article_subjects", ["article_id"], :name => "index_article_subjects_on_article_id"
+  add_index "article_subjects", ["subject_id", "article_id"], :name => "index_article_subjects_on_subject_id_and_article_id", :unique => true
 
   create_table "articles", :force => true do |t|
     t.text   "title"
     t.string "source"
     t.date   "pubdate"
   end
+
+  create_table "gene_subjects", :force => true do |t|
+    t.integer "gene_id"
+    t.integer "subject_id"
+    t.integer "articles_count", :default => 0
+  end
+
+  add_index "gene_subjects", ["gene_id", "articles_count"], :name => "index_gene_subjects_on_gene_id_and_articles_count"
+  add_index "gene_subjects", ["subject_id", "articles_count"], :name => "index_gene_subjects_on_subject_id_and_articles_count"
 
   create_table "genes", :force => true do |t|
     t.integer "taxonomy_id"
@@ -32,6 +56,14 @@ ActiveRecord::Schema.define(:version => 20110329220529) do
   add_index "genes", ["articles_count"], :name => "index_genes_on_articles_count"
   add_index "genes", ["symbol"], :name => "index_genes_on_symbol"
   add_index "genes", ["taxonomy_id", "articles_count"], :name => "index_genes_on_taxonomy_id_and_articles_count"
+
+  create_table "mesh_entry_terms", :force => true do |t|
+    t.integer "subject_id"
+    t.string  "term"
+  end
+
+  add_index "mesh_entry_terms", ["subject_id"], :name => "index_mesh_entry_terms_on_subject_id"
+  add_index "mesh_entry_terms", ["term"], :name => "index_mesh_entry_terms_on_term"
 
   create_table "subjects", :force => true do |t|
     t.string "term"
