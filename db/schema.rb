@@ -10,12 +10,27 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20110329214239) do
+ActiveRecord::Schema.define(:version => 20110329215744) do
 
   create_table "articles", :force => true do |t|
     t.text   "title"
     t.string "source"
     t.date   "pubdate"
   end
+
+  create_table "genes", :force => true do |t|
+    t.integer "taxonomy_id"
+    t.string  "symbol"
+    t.string  "name"
+    t.string  "chromosome"
+    t.string  "map_location"
+    t.integer "articles_count", :default => 0
+    t.integer "start_position"
+    t.integer "end_position"
+  end
+
+  add_index "genes", ["articles_count"], :name => "index_genes_on_articles_count"
+  add_index "genes", ["symbol"], :name => "index_genes_on_symbol"
+  add_index "genes", ["taxonomy_id", "articles_count"], :name => "index_genes_on_taxonomy_id_and_articles_count"
 
 end
