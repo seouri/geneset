@@ -23,6 +23,8 @@ download(@source);
 my ($article_ids, $gene_ids) = do_gene2pubmed();
 do_gene_info($gene_ids);
 do_dbin($year);
+download_medline($article_ids);
+do_medline();
 
 sub download {
   my @source = @_;
@@ -63,47 +65,52 @@ sub do_gene2pubmed {
 
 sub do_gene_info {
   my $gene_ids = shift;
-  open(FH, "< tmp/gene_info") or die("Can't read tmp/gene_info: $!\n");
-  open(GE, "> tmp/genes.dat") or die("Can't write tmp/genes.dat: $!\n");
-  print STDERR "WRITE genes.dat ... ";
-  my $head = <FH>;
-  while (<FH>) {
-    chomp;
-    my ($taxonomy_id, $gene_id, $symbol, $locus_tag, $synonyms, $dbXrefs, $chromosome, $map_location, $description, $type_of_gene, $symbol_from_nomenclature_authority, $full_name_from_nomenclature_authority, $nomenclature_status, $other_designations, $modification_date) = split /\t/;
-    if ($gene_ids->{$gene_id}) {
-      print GE join("\t", $gene_id, $taxonomy_id, $symbol, $description, $chromosome, $map_location, $gene_ids->{$gene_id}), "\n";
+  unless (-e "tmp/genes.dat") {
+    open(FH, "< tmp/gene_info") or die("Can't read tmp/gene_info: $!\n");
+    open(GE, "> tmp/genes.dat") or die("Can't write tmp/genes.dat: $!\n");
+    print STDERR "WRITE genes.dat ... ";
+    my $head = <FH>;
+    while (<FH>) {
+      chomp;
+      my ($taxonomy_id, $gene_id, $symbol, $locus_tag, $synonyms, $dbXrefs, $chromosome, $map_location, $description, $type_of_gene, $symbol_from_nomenclature_authority, $full_name_from_nomenclature_authority, $nomenclature_status, $other_designations, $modification_date) = split /\t/;
+      if ($gene_ids->{$gene_id}) {
+        print GE join("\t", $gene_id, $taxonomy_id, $symbol, $description, $chromosome, $map_location, $gene_ids->{$gene_id}), "\n";
+      }
     }
+    print STDERR "done\n";
+    close GE;
+    close FH;
   }
-  print STDERR "done\n";
-  close GE;
-  close FH;
 }
 
 sub do_dbin {
   my $year = shift;
-  my $desc = read_bin("tmp/d$year.bin");
-  print STDERR "WRITE subjects.dat, mesh_entry_terms.dat ... ";
-  open(SU, "> tmp/subjects.dat") or die("Can't write tmp/subjects.dat: $!\n");
-  open(EN, "> tmp/mesh_entry_terms.dat") or die("Can't write tmp/mesh_entry_terms.dat: $!\n");
-  my $mesh_entry_term_id = 0;
-  foreach my $d (@$desc) {
-    if ($d->{mn}) {
-      my $tree_numbers = join(";", @{ $d->{mn} });
-      if ($tree_numbers !~ /V/g) {
-        my $term = $d->{mh}->[0];
-        my $subject_id = $d->{ui}->[0]; $subject_id =~ s/^D0*//g;
-        print SU join("\t", $subject_id, $term), "\n";
-        foreach my $i (($term, @{$d->{entry}}, @{$d->{"print entry"}})) {
-          $i =~ s/\|.+$//g;
-          print EN join("\t", ++$mesh_entry_term_id, $subject_id, $i), "\n";
+  unless (-e "tmp/d$year.bin" and -e "tmp/mesh_entry_terms.dat") {
+    my $desc = read_bin("tmp/d$year.bin");
+    print STDERR "WRITE subjects.dat, mesh_entry_terms.dat ... ";
+    open(SU, "> tmp/subjects.dat") or die("Can't write tmp/subjects.dat: $!\n");
+    open(EN, "> tmp/mesh_entry_terms.dat") or die("Can't write tmp/mesh_entry_terms.dat: $!\n");
+    my $mesh_entry_term_id = 0;
+    foreach my $d (@$desc) {
+      if ($d->{mn}) {
+        my $tree_numbers = join(";", @{ $d->{mn} });
+        if ($tree_numbers !~ /V/g) {
+          my $term = $d->{mh}->[0];
+          my $subject_id = $d->{ui}->[0]; $subject_id =~ s/^D0*//g;
+          print SU join("\t", $subject_id, $term), "\n";
+          foreach my $i (($term, @{$d->{entry}}, @{$d->{"print entry"}})) {
+            $i =~ s/\|.+$//g;
+            print EN join("\t", ++$mesh_entry_term_id, $subject_id, $i), "\n";
+          }
         }
       }
     }
+    close EN;
+    close SU;
+    print STDERR "done\n";
   }
-  close EN;
-  close SU;
-  print STDERR "done\n";
 }
+
 sub read_bin {
   my $file = shift;
   print STDERR "READ $file ... ";
@@ -131,3 +138,76 @@ sub read_bin {
   return \@file;
 }
 
+sub download_medline {
+  my $article_ids = shift;
+  my $epost = "http://www.ncbi.nlm.nih.gov/entrez/eutils/epost.fcgi";
+  my $efetch = "http://www.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi";
+  my @pmids = sort { $a <=> $b } keys %$article_ids;
+  for (my $begin = 0; $begin <= $#pmids; $begin += 10000) {
+    my $end = $begin + 9999;
+    $end = $#pmids if $end > $#pmids;
+    print STDERR "DOWNLOAD pubmed [", $begin + 1, " - ", $end + 1, "] ... ";
+    my $output = "tmp/" . join(".", "geneset", $begin + 1, $end + 1, "medline",  "txt");
+    unless (-e $output) {
+      my $id = join(",", @pmids[$begin .. $end]);
+      my $response = `curl -s -F "db=pubmed" -F "tool=medvane" -F "email=joon\@medvane.org" -F "id=$id" "$epost"`;
+      if ($response =~ /<WebEnv>(.+)<\/WebEnv>/) {
+        my $webenv = $1;
+        my $response = `curl -s -o "$output" -F "rettype=medline" -F "retmode=text" -F "db=pubmed" -F "tool=medvane" -F "email=joon\@medvane.org" -F "WebEnv=$webenv" -F "query_key=1" "$efetch"`;
+      }
+    }
+    my $count = `grep "^PMID" $output | wc -l`; $count =~ s/^\s*(\d+)\s*$/$1/;
+    if ($count == ($end - $begin + 1)) {
+      print STDERR "OK\n";
+    } else {
+      print STDERR "ERROR [$count]\n";
+      #`rm $output`;
+    }
+  }
+}
+
+sub do_medline {
+  open(AR, "> tmp/articles.dat") or die("Can't write tmp/articles.dat: $!\n");
+  foreach my $i (<tmp/geneset*.medline.txt>) {
+    print STDERR "PARSE $i ... ";
+    open(FH, "< $i") or die("Can't read $i: $!\n");
+    $/ = "\n\n";
+    while (<FH>) {
+      my $record = $_;
+      my $rec = parse_medline($_);
+      my $pmid = $rec->{PMID}->[0];
+      my $ti = $rec->{TI}->[0] || "[No title available]";
+      my $dp = $rec->{DP}->[0]; $dp =~ s/^(\d{4}).+$/$1/g;
+      my $so = $rec->{SO}->[0] || $rec->{BTI}->[0];
+      if ($pmid && $ti && $so && $dp) {
+        print AR join("\t", $pmid, $ti, $so, $dp), "\n";
+      } else {
+        print STDERR "ERROR [$pmid|$ti|$so|$dp][$record]\n" 
+      }
+    }
+    $/ = "\n";
+    close FH;
+    print STDERR "done\n";
+  }
+  close FH;
+}
+
+sub parse_medline {
+  my $str = shift;
+  my %rec;
+  my @line = split /\n/, $str;
+  my $last_key = "";
+  foreach my $l (@line) {
+    my $key = substr($l, 0, 4);
+    $key =~ s/\s+$//g;
+    my $val = substr($l, 6);
+    if ($key) {
+      push @{ $rec{$key} }, $val;
+      $last_key = $key;
+    } elsif ($val) {
+      my $last_idx = $#{ $rec{$last_key} };
+      $rec{$last_key}->[$last_idx] .= " " . $val;
+    }
+  }
+  return \%rec;
+}
