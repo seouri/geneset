@@ -22,7 +22,7 @@ download(@source);
 
 my ($article_ids, $gene_ids) = do_gene2pubmed();
 do_gene_info($gene_ids);
-do_dbin($year);
+my ($subject_ids, $ancestor_ids) = do_dbin($year);
 download_medline($article_ids);
 do_medline();
 
@@ -85,30 +85,50 @@ sub do_gene_info {
 
 sub do_dbin {
   my $year = shift;
-  unless (-e "tmp/d$year.bin" and -e "tmp/mesh_entry_terms.dat") {
-    my $desc = read_bin("tmp/d$year.bin");
-    print STDERR "WRITE subjects.dat, mesh_entry_terms.dat ... ";
-    open(SU, "> tmp/subjects.dat") or die("Can't write tmp/subjects.dat: $!\n");
-    open(EN, "> tmp/mesh_entry_terms.dat") or die("Can't write tmp/mesh_entry_terms.dat: $!\n");
-    my $mesh_entry_term_id = 0;
-    foreach my $d (@$desc) {
-      if ($d->{mn}) {
-        my $tree_numbers = join(";", @{ $d->{mn} });
-        if ($tree_numbers !~ /V/g) {
-          my $term = $d->{mh}->[0];
-          my $subject_id = $d->{ui}->[0]; $subject_id =~ s/^D0*//g;
-          print SU join("\t", $subject_id, $term), "\n";
-          foreach my $i (($term, @{$d->{entry}}, @{$d->{"print entry"}})) {
-            $i =~ s/\|.+$//g;
-            print EN join("\t", ++$mesh_entry_term_id, $subject_id, $i), "\n";
-          }
+  my (%subject_id, %ancestor_id, %tree2subject_id);
+  my $desc = read_bin("tmp/d$year.bin");
+  print STDERR "WRITE subjects.dat, mesh_entry_terms.dat ... ";
+  open(SU, "> tmp/subjects.dat") or die("Can't write tmp/subjects.dat: $!\n");
+  open(EN, "> tmp/mesh_entry_terms.dat") or die("Can't write tmp/mesh_entry_terms.dat: $!\n");
+  my $mesh_entry_term_id = 0;
+  foreach my $d (@$desc) {
+    if ($d->{mn}) {
+      my $subject_id = $d->{ui}->[0]; $subject_id =~ s/^D0*//g;
+      my @tree_number = grep { $_ !~ /V/ } @{ $d->{mn} };
+      if ($#tree_number >= 0) {
+        my $term = $d->{mh}->[0];
+        print SU join("\t", $subject_id, $term), "\n";
+        foreach my $i (($term, @{$d->{entry}}, @{$d->{"print entry"}})) {
+          $i =~ s/\|.+$//g;
+          print EN join("\t", ++$mesh_entry_term_id, $subject_id, $i), "\n";
+        }
+        $subject_id{$term} = $subject_id;
+      }
+      foreach my $t (@tree_number) {
+        $tree2subject_id{$t} = $subject_id;
+      }
+    }
+  }
+  close EN;
+  close SU;
+  print STDERR "done\n";
+  foreach my $d (@$desc) {
+    if ($d->{mn}) {
+      my $term = $d->{mh}->[0];
+      my $subject_id = $subject_id{$term};
+      foreach my $t (grep { $_ !~ /V/ } @{ $d->{mn} }) {
+        my @tree_part = split(/\./, $t);
+        pop @tree_part;
+        while ($#tree_part >= 0) {
+          my $tree_number = join(".", @tree_part);
+          my $ancestor_id = $tree2subject_id{$tree_number};
+          ++$ancestor_id{$subject_id}->{$ancestor_id};
+          pop @tree_part;
         }
       }
     }
-    close EN;
-    close SU;
-    print STDERR "done\n";
   }
+  return (\%subject_id, \%ancestor_id);
 }
 
 sub read_bin {
@@ -168,6 +188,8 @@ sub download_medline {
 
 sub do_medline {
   open(AR, "> tmp/articles.dat") or die("Can't write tmp/articles.dat: $!\n");
+  open(AS, "> tmp/article_subjects.dat") or die("Can't write tmp/article_subjects.dat: $!\n");
+  my $article_subject_id = 0;
   foreach my $i (<tmp/geneset*.medline.txt>) {
     print STDERR "PARSE $i ... ";
     open(FH, "< $i") or die("Can't read $i: $!\n");
@@ -184,12 +206,15 @@ sub do_medline {
       } else {
         print STDERR "ERROR [$pmid|$ti|$so|$dp][$record]\n" 
       }
+      my @subject_id = subject_id($rec->{MH});
+      print AS join("\n", map { join("\t", ++$article_subject_id, $pmid, $_) } @subject_id), "\n";
     }
     $/ = "\n";
     close FH;
     print STDERR "done\n";
   }
-  close FH;
+  close AS;
+  close AR;
 }
 
 sub parse_medline {
@@ -210,4 +235,20 @@ sub parse_medline {
     }
   }
   return \%rec;
+}
+
+sub subject_id {
+  my $subjects = shift;
+  my @majr = map { s/\/.+$//g; s/\*//g; $_ } grep { /\*/ } @$subjects;
+  my %subject_id;
+  foreach my $m (@majr) {
+    my $subject_id = $subject_ids->{$m};
+    ++$subject_id{$subject_id};
+    my @ancestor_id = keys %{ $ancestor_ids->{$subject_id} };
+    foreach my $a (@ancestor_id) {
+      ++$subject_id{$a};
+    }
+  }
+  my @subject_id = sort { $a <=> $b } keys %subject_id;
+  return @subject_id;
 }
