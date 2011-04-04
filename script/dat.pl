@@ -7,7 +7,7 @@
 # article_genes.dat   : id | article_id | gene_id
 # article_subjects.dat: id | article_id | subject_id
 # gene_subjects.dat   : id | gene_id | subject_id | articles_count
-# mesh_entry_terms.dat: id | subject_id | term
+# synonyms.dat: id | subject_id | term
 
 use strict;
 
@@ -88,9 +88,9 @@ sub do_dbin {
   my $year = shift;
   my (%subject_id, %ancestor_id, %tree2subject_id);
   my $desc = read_bin("tmp/d$year.bin");
-  print STDERR "WRITE subjects.dat, mesh_entry_terms.dat ... ";
+  print STDERR "WRITE subjects.dat, synonyms.dat ... ";
   open(SU, "> tmp/subjects.dat") or die("Can't write tmp/subjects.dat: $!\n");
-  open(EN, "> tmp/mesh_entry_terms.dat") or die("Can't write tmp/mesh_entry_terms.dat: $!\n");
+  open(EN, "> tmp/synonyms.dat") or die("Can't write tmp/synonyms.dat: $!\n");
   my $mesh_entry_term_id = 0;
   foreach my $d (@$desc) {
     if ($d->{mn}) {

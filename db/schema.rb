@@ -55,18 +55,18 @@ ActiveRecord::Schema.define(:version => 20110329222526) do
   add_index "genes", ["symbol"], :name => "index_genes_on_symbol"
   add_index "genes", ["taxonomy_id", "articles_count"], :name => "index_genes_on_taxonomy_id_and_articles_count"
 
-  create_table "mesh_entry_terms", :force => true do |t|
-    t.integer "subject_id"
-    t.string  "term"
-  end
-
-  add_index "mesh_entry_terms", ["subject_id"], :name => "index_mesh_entry_terms_on_subject_id"
-  add_index "mesh_entry_terms", ["term"], :name => "index_mesh_entry_terms_on_term"
-
   create_table "subjects", :force => true do |t|
     t.string "term"
   end
 
   add_index "subjects", ["term"], :name => "index_subjects_on_term"
+
+  create_table "synonyms", :force => true do |t|
+    t.integer "subject_id"
+    t.string  "term"
+  end
+
+  add_index "synonyms", ["subject_id"], :name => "index_synonyms_on_subject_id"
+  add_index "synonyms", ["term"], :name => "index_synonyms_on_term"
 
 end
