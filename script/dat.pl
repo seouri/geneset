@@ -25,6 +25,7 @@ do_gene_info($gene_ids);
 my ($subject_ids, $ancestor_ids) = do_dbin($year);
 download_medline($article_ids);
 do_medline();
+do_gene_subjects();
 
 sub download {
   my @source = @_;
@@ -52,7 +53,7 @@ sub do_gene2pubmed {
     chomp;
     my ($tax_id, $gene_id, $article_id) = split /\t/;
     print AG join("\t", ++$article_gene_id, $article_id, $gene_id), "\n";
-    ++$article_id{$article_id};
+    ++$article_id{$article_id}->{$gene_id};
     ++$gene_id{$gene_id};
   }
   print STDERR $article_gene_id, "\n";
@@ -215,6 +216,47 @@ sub do_medline {
   }
   close AS;
   close AR;
+  print STDERR "done\n";
+}
+
+sub do_gene_subjects {
+  open(GS, "> tmp/gene_subjects.dat") or die("Can't write tmp/gene_subjects.dat: $!\n");
+  my $gene_subject_id = 0;
+  my $parts = 2;
+  foreach my $part (0 .. ($parts - 1)) {
+    my %gene_subject;
+    foreach my $i (<tmp/geneset*.medline.txt>) {
+      print STDERR "PARSE $i ... ";
+      open(FH, "< $i") or die("Can't read $i: $!\n");
+      $/ = "\n\n";
+      while (<FH>) {
+        my $record = $_;
+        my $rec = parse_medline($_);
+        my $pmid = $rec->{PMID}->[0];
+        my @subject_id = subject_id($rec->{MH});
+        my @gene_id = sort keys %{ $article_ids->{$pmid} } if $pmid;
+        foreach my $s (@subject_id) {
+          foreach my $g (@gene_id) {
+            ++$gene_subject{$s}->{$g} if $g % $parts == $part;
+          }
+        }
+      }
+      $/ = "\n";
+      close FH;
+      print STDERR "done\n";
+    }
+    print STDERR "WRITE tmp/gene_subjects.dat ... ";
+    foreach my $s (keys %gene_subject) {
+      foreach my $g (keys %{ $gene_subject{$s} }) {
+        if ($gene_subject{$s}->{$g}) {
+          print GS join("\t", ++$gene_subject_id, $g, $s, $gene_subject{$s}->{$g}), "\n";
+          #delete $gene_subject{$g};
+        }
+      }
+    }
+    print STDERR "done\n";
+  }
+  close GS;
 }
 
 sub parse_medline {
