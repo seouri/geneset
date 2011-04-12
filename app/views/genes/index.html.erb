@@ -1,4 +1,4 @@
-<h1>Listing genes</h1>
+<h1>Genes</h1>
 
 <table>
   <tr>
@@ -8,11 +8,6 @@
     <th>Chromosome</th>
     <th>Map location</th>
     <th>Articles count</th>
-    <th>Start position</th>
-    <th>End position</th>
-    <th></th>
-    <th></th>
-    <th></th>
   </tr>
 
 <% @genes.each do |gene| %>
@@ -23,15 +18,6 @@
     <td><%= gene.chromosome %></td>
     <td><%= gene.map_location %></td>
     <td><%= gene.articles_count %></td>
-    <td><%= gene.start_position %></td>
-    <td><%= gene.end_position %></td>
-    <td><%= link_to 'Show', gene %></td>
-    <td><%= link_to 'Edit', edit_gene_path(gene) %></td>
-    <td><%= link_to 'Destroy', gene, :confirm => 'Are you sure?', :method => :delete %></td>
   </tr>
 <% end %>
 </table>
-
-<br />
-
-<%= link_to 'New Gene', new_gene_path %>

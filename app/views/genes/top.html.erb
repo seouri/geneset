@@ -1,0 +1,9 @@
+<% if @genes.size > 0 %>
+  <ol>
+  <% @genes.each do |j| %>
+    <li><%= link_to j.symbol, gene_path(j) %></li>
+  <% end %>
+  </ol>
+<% else %>
+  No gene!
+<% end %>
