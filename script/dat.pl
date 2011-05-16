@@ -15,12 +15,16 @@ my $year = 2011;
 my @source = (
   "ftp://ftp.ncbi.nih.gov/gene/DATA/gene2pubmed.gz",
   "ftp://ftp.ncbi.nih.gov/gene/DATA/gene_info.gz",
-  "ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d$year.bin"
+  "ftp://nlmpubs.nlm.nih.gov/online/mesh/.asciimesh/d$year.bin",
+  "ftp://ftp.ncbi.nih.gov/pub/taxonomy/taxdump.tar.gz"
 );
 
 download(@source);
 
-my ($article_ids, $gene_ids) = do_gene2pubmed();
+my ($article_ids, $gene_ids, $tax_ids) = do_gene2pubmed();
+do_taxonomy($tax_ids);
+print STDERR "###### DONE";
+my $tmp = <STDIN>;
 do_gene_info($gene_ids);
 my ($subject_ids, $ancestor_ids) = do_dbin($year);
 download_medline($article_ids);
@@ -38,6 +42,8 @@ sub download {
       unless -e "tmp/$file" || -e "tmp/$file_unzipped";
     `gunzip -f tmp/$file`
       if $file =~ /gz$/ && -e "tmp/$file";
+    `tar -C tmp/ -xf tmp/$file names.dmp`
+      if $file =~ s/\.gz$//g && $file =~ /tar$/ && -e "tmp/$file";
     print STDERR "done.\n";
   }
 }
@@ -48,20 +54,22 @@ sub do_gene2pubmed {
   print STDERR "WRITE article_genes.dat ... ";
   my $head = <FH>;
   my $article_gene_id = 0;
-  my (%article_id, %gene_id);
+  my (%article_id, %gene_id, %tax_id);
   while (<FH>) {
     chomp;
     my ($tax_id, $gene_id, $article_id) = split /\t/;
     print AG join("\t", ++$article_gene_id, $article_id, $gene_id), "\n";
     ++$article_id{$article_id}->{$gene_id};
     ++$gene_id{$gene_id};
+    ++$tax_id{$tax_id}->{$gene_id};
   }
   print STDERR $article_gene_id, "\n";
   print STDERR "ARTICLE: ", scalar(keys %article_id), "\n";
   print STDERR "GENE: ", scalar(keys %gene_id), "\n";
+  print STDERR "TAXONOMY: ", scalar(keys %tax_id), "\n";
   close AG;
   close FH;
-  return (\%article_id, \%gene_id);
+  return (\%article_id, \%gene_id, \%tax_id);
 }
 
 sub do_gene_info {
@@ -81,6 +89,34 @@ sub do_gene_info {
     print STDERR "done\n";
     close GE;
     close FH;
+  }
+}
+
+sub do_taxonomy {
+  my $tax_ids = shift;
+  unless (-e "tmp/taxonomies.dat") {
+    open(FH, "< tmp/names.dmp") or die("Can't read tmp/names.dmp: $!\n");
+    my %taxonomy;
+    while (<FH>) {
+      chomp;
+      my ($tax_id, $name_txt, $unique_name, $name_class) = split /\s*\|\s*/;
+      if ($tax_ids->{$tax_id} && ($name_class eq "scientific name" || $name_class eq "genbank common name")) {
+        $taxonomy{$tax_id}->{$name_class} = $name_txt;
+      }
+    }
+    close FH;
+
+    print STDERR "WRITE taxonomies.dat ... ";
+    my $count = 0;
+    open(OH, "> tmp/taxonomies.dat") or die("Can't write tmp/taxonomies.dat: $!\n");
+    foreach my $tax_id (sort { $a <=> $b } keys %taxonomy) {
+      my $name = $taxonomy{$tax_id}->{"genbank common name"} || $taxonomy{$tax_id}->{"scientific name"};
+      my $genes_count = scalar(keys %{ $tax_ids->{$tax_id} });
+      print OH join("\t", $tax_id, $name, $genes_count), "\n";
+      ++$count;
+    }
+    close OH;
+    print STDERR "$count\n";
   }
 }
 
@@ -222,7 +258,7 @@ sub do_medline {
 sub do_gene_subjects {
   open(GS, "> tmp/gene_subjects.dat") or die("Can't write tmp/gene_subjects.dat: $!\n");
   my $gene_subject_id = 0;
-  my $parts = 2;
+  my $parts = 10;
   foreach my $part (0 .. ($parts - 1)) {
     my %gene_subject;
     foreach my $i (<tmp/geneset*.medline.txt>) {
@@ -281,10 +317,14 @@ sub parse_medline {
 
 sub subject_id {
   my $subjects = shift;
+  #my @majr = map { s/\/.+$//g; s/\*//g; $_ } grep { $_ ne "Female" && $_ ne "Male" } @$subjects;
   my @majr = map { s/\/.+$//g; s/\*//g; $_ } grep { /\*/ } @$subjects;
   my %subject_id;
   foreach my $m (@majr) {
     my $subject_id = $subject_ids->{$m};
+    unless ($subject_id) {
+      print STDERR "[$m]\n"; my $tmp = <STDIN>;
+    }
     ++$subject_id{$subject_id};
     my @ancestor_id = keys %{ $ancestor_ids->{$subject_id} };
     foreach my $a (@ancestor_id) {

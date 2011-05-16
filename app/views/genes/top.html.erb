@@ -1,9 +1,24 @@
 <% if @genes.size > 0 %>
-  <ol>
-  <% @genes.each do |j| %>
-    <li><%= link_to j.symbol, gene_path(j) %></li>
+  <table>
+    <tr>
+      <th>Symbol</th>
+      <th>Species</th>
+      <th>Name</th>
+      <th>Chromosome</th>
+      <th>Map Location</th>
+      <th>Articles &#9662;</th>
+    </tr>
+  <% @genes.each do |g| %>
+    <tr class="<%= cycle("even", "odd") %>">
+      <td><%= link_to g.symbol, gene_path(g, :ids => @ids) %></td>
+      <td><%= g.taxonomy.name %></td>
+      <td><%= g.name %></td>
+      <td><%= g.chromosome %></td>
+      <td><%= g.map_location %></td>
+      <td class="number"><%= number_with_delimiter(g.matched_articles_count) %> <%= pubmed_links(g.id, @term) %></td>
+    </tr>
   <% end %>
-  </ol>
+  </table>
 <% else %>
   No gene!
 <% end %>

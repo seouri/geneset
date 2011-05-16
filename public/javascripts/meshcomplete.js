@@ -1,5 +1,4 @@
 $(function() {
-  //$("#meshcomplete-box").append('<input id="meshcomplete" />').append('<span id="meshcomplete-clear" title="Clear search">&times;</span>').append('<input type="hidden" id="meshcomplete-selected-ids"/>');
   $("#meshcomplete").attr("value","").attr("size", 5);
   $("#meshcomplete-box").click(function(){  
     $("#meshcomplete").focus(); 
@@ -65,9 +64,10 @@ $(function() {
       var selected_ids = $("#meshcomplete-selected-ids").attr("value").split(",");
       selected_ids.push( ui.item.id );
       $("#meshcomplete-selected-ids").attr("value", selected_ids.join(","));
+      $("#meshcomplete-update").html('<img src="/images/loading.gif"> Loading ...').slideDown("slow");
       $.get("/meshcomplete-update", { ids: selected_ids.join(",") },
         function(data) {
-          $("#meshcomplete-update").html(data);
+          $("#meshcomplete-update").html(data).slideDown("slow");
         }
       );
       return false;

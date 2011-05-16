@@ -1,3 +1,9 @@
-<h1><%= @gene.symbol %></h1>
+<h1><%= @gene.symbol %> [<%= @gene.taxonomy.name %>]</h1>
 <h2><%= @gene.name %></h2>
 
+<h2>Top Subjects</h2>
+<ol>
+<% @gene.gene_subjects.each do |gs| %>
+  <li><%= gs.subject.term %> <span class="count"><%= gs.articles_count %></span></li>
+<% end %>
+</ol>

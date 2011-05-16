@@ -10,7 +10,7 @@
 #
 # It's strongly recommended to check this file into your version control system.
 
-ActiveRecord::Schema.define(:version => 20110329222526) do
+ActiveRecord::Schema.define(:version => 20110426102406) do
 
   create_table "article_genes", :force => true do |t|
     t.integer "article_id"
@@ -68,5 +68,10 @@ ActiveRecord::Schema.define(:version => 20110329222526) do
 
   add_index "synonyms", ["subject_id"], :name => "index_synonyms_on_subject_id"
   add_index "synonyms", ["term"], :name => "index_synonyms_on_term"
+
+  create_table "taxonomies", :force => true do |t|
+    t.string  "name"
+    t.integer "genes_count"
+  end
 
 end
