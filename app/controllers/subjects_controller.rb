@@ -16,3 +16,4 @@ class SubjectsController < ApplicationController
       format.xml  { render :xml => @subject }
     end
   end
+end
