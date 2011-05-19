@@ -23,7 +23,7 @@ class GenesController < ApplicationController
       if @subject_ids.size == 1
         @genes = GeneSubject.where(:subject_id => @subject_ids.first).order("articles_count desc").limit(30).includes(:gene => :taxonomy).map {|gs| gs.gene.matched_articles_count = gs.articles_count; gs.gene}
       else
-        article_ids = ArticleSubject.select("article_id, count(distinct(subject_id)) subjects").where(:subject_id => @subject_ids).group(:article_id).having("subjects=#{@subject_ids.size}").map{|as| as.article_id}
+        article_ids = ArticleSubject.select("article_id, count(distinct(subject_id)) as subjects").where(:subject_id => @subject_ids).group(:article_id).having("subjects=#{@subject_ids.size}").map{|as| as.article_id}
         ag = ArticleGene.where(:article_id => article_ids).group(:gene_id).select("gene_id, count(distinct(article_id)) articles").order("articles desc").limit(30).includes(:gene => :taxonomy)
         @genes = ag.map {|ag| ag.gene.matched_articles_count = ag.articles; ag.gene}
       end
